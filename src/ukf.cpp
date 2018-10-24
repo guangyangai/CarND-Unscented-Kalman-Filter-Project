@@ -37,6 +37,9 @@ UKF::UKF() {
 
   // Process noise standard deviation yaw acceleration in rad/s^2
   std_yawdd_ = 0.5;
+  Q_ = MatrixXd(2, 2);
+  Q_ <<std_a_*std_a_,0,
+       0, std_yawdd_*std_yawdd_;
   
   //DO NOT MODIFY measurement noise values below these are provided by the sensor manufacturer.
   // Laser measurement noise standard deviation position1 in m
@@ -44,7 +47,11 @@ UKF::UKF() {
 
   // Laser measurement noise standard deviation position2 in m
   std_laspy_ = 0.15;
-
+  
+  R_laser_ = MatrixXd(2, 2);
+  R_laser_ << std_laspx_*std_laspx_, 0,
+              0, std_laspy_*std_laspy_;
+  
   // Radar measurement noise standard deviation radius in m
   std_radr_ = 0.3;
 
@@ -55,6 +62,10 @@ UKF::UKF() {
   std_radrd_ = 0.3;
   //DO NOT MODIFY measurement noise values above these are provided by the sensor manufacturer.
   
+  R_radar_ = MatrixXd(3, 3);
+  R_radar_ << std_radr_*std_radr_, 0, 0,
+              0, std_radphi_*std_radphi_, 0,
+              0, 0,std_radrd_*std_radrd_;
   /**
   TODO:
 
@@ -98,13 +109,9 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
       if (meas_package.sensor_type_ == MeasurementPackage::RADAR && use_radar_) {
         double rho = meas_package.raw_measurements_[0];
         double phi = meas_package.raw_measurements_[1];
-        double rho_dot = meas_package.raw_measurements_[2];
         double x = rho * cos(phi);
         double y = rho * sin(phi);
-        double vx = rho_dot * cos(phi);
-        double vy = rho_dot * sin(phi);
-        double v = sqrt(vx * vx + vy * vy);
-        x_ << x, y, v, 0, 0;
+        x_ << x, y, 0, 0, 0;
       }
       else if (meas_package.sensor_type_ == MeasurementPackage::LASER && use_laser_) {
         x_ << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1], 0, 0, 0;
@@ -148,8 +155,7 @@ void UKF::Prediction(double delta_t) {
   x_aug(6) = 0;
   P_aug.fill(0.0);
   P_aug.topLeftCorner(n_x_,n_x_) = P_;
-  P_aug(5,5) = std_a_*std_a_;
-  P_aug(6,6) = std_yawdd_*std_yawdd_;
+  P_aug.bottomRightCorner(2,2) = Q_;
   MatrixXd L = P_aug.llt().matrixL();
   cout<<"L"<<L<<"\n";
   //create augmented sigma points
@@ -162,11 +168,11 @@ void UKF::Prediction(double delta_t) {
   //predicting sigma points 
   for (int i = 0; i < 2 * n_aug_ + 1; i++){
     //extract values for better readability
-    double p_x = Xsig_aug(0,i);
-    double p_y = Xsig_aug(1,i);
-    double v = Xsig_aug(2,i);
-    double yaw = Xsig_aug(3,i);
-    double yawd = Xsig_aug(4,i);
+    double const p_x = Xsig_aug(0,i);
+    double const p_y = Xsig_aug(1,i);
+    double const v = Xsig_aug(2,i);
+    double const yaw = Xsig_aug(3,i);
+    double const yawd = Xsig_aug(4,i);
     double nu_a = Xsig_aug(5,i);
     double nu_yawdd = Xsig_aug(6,i);
 
@@ -203,11 +209,13 @@ void UKF::Prediction(double delta_t) {
   }
   cout<<"mean before" << time_us_ << x_<<"\n";
   //predicting mean and covariance 
+  x_.fill(0.0);
   for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //iterate over sigma points
     x_ = x_ + weights_(i) * Xsig_pred_.col(i);
   }
   cout<<"mean at" << time_us_ << x_ <<"\n";
   //cout<<'Sigma points' << Xsig_pred_ <<'\n';
+  P_.fill(0.0);
   for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //iterate over sigma points
     // state difference
     VectorXd x_diff = Xsig_pred_.col(i) - x_;
@@ -259,10 +267,7 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   }
 
   //add measurement noise covariance matrix
-  MatrixXd R = MatrixXd(n_z,n_z);
-  R <<    std_laspx_*std_laspx_, 0,
-          0, std_laspy_*std_laspy_;
-  S = S + R;
+  S = S + R_laser_;
   //use measurement to update 
   VectorXd z = meas_package.raw_measurements_;
   MatrixXd Tc = MatrixXd(n_x_, n_z);
@@ -347,11 +352,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   }
 
   //add measurement noise covariance matrix
-  MatrixXd R = MatrixXd(n_z,n_z);
-  R <<    std_radr_*std_radr_, 0, 0,
-          0, std_radphi_*std_radphi_, 0,
-          0, 0,std_radrd_*std_radrd_;
-  S = S + R;
+  S = S + R_radar_;
   //use measurement to update 
   VectorXd z = meas_package.raw_measurements_;
   MatrixXd Tc = MatrixXd(n_x_, n_z);

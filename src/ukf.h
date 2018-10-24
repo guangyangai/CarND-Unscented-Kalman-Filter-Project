@@ -39,6 +39,9 @@ public:
 
   ///* Process noise standard deviation yaw acceleration in rad/s^2
   double std_yawdd_;
+  
+  ///* Process noise covariance
+  MatrixXd Q_;
 
   ///* Laser measurement noise standard deviation position1 in m
   double std_laspx_;
@@ -46,6 +49,9 @@ public:
   ///* Laser measurement noise standard deviation position2 in m
   double std_laspy_;
 
+  ///* Laser measurement noise covariance
+  MatrixXd R_laser_;
+  
   ///* Radar measurement noise standard deviation radius in m
   double std_radr_;
 
@@ -54,6 +60,9 @@ public:
 
   ///* Radar measurement noise standard deviation radius change in m/s
   double std_radrd_ ;
+  
+  ///* Laser measurement noise covariance
+  MatrixXd R_radar_;
 
   ///* Weights of sigma points
   VectorXd weights_;
